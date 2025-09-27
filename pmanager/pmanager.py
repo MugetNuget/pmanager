@@ -111,8 +111,7 @@ def list_libs():
         print(f" - {l}")
 
 
-def list_pico_projects():
-    config = load_config()  # tu función para cargar JSON
+def list_pico_projects(): # tu función para cargar JSON
     root = config.get("pico_projects_path")
     if not root or not os.path.exists(root):
         print("Ruta de proyectos Pico no encontrada.")
