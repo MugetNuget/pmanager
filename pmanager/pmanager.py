@@ -5,28 +5,29 @@ import subprocess
 import pkg_resources
 
 
-CONFIG_FILE = "pmanager_config.json"
+CONFIG_FILE = "pmanager/pmanager_config.json"
 
 
 with pkg_resources.resource_stream(__name__, "libraries.json") as f:
     LIBRARIES = json.load(f)
 
 def load_config():
+    default = {"lib_path": os.path.join(os.path.expanduser("~"), ".pclibs"),
+               "pico_projects_path": os.path.join(os.path.expanduser("~"), "PicoProjects")}
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
-    else:
-        # carpeta por defecto
-        home = os.path.expanduser("~")
-        pclibs_path = os.path.join(home, ".pclibs")
-        return {"lib_path": pclibs_path}
+            user_config = json.load(f)
+        default.update(user_config)  # mantiene defaults si faltan claves
+    return default
 
 def save_config(config):
     with open(CONFIG_FILE, "w") as f:
         json.dump(config, f, indent=4)
 
 config = load_config()
-LIB_PATH = config["lib_path"]
+LIB_PATH = os.path.normpath(config["lib_path"])
+PP_PATH = os.path.normpath(config["pico_projects_path"])
+
 os.makedirs(LIB_PATH, exist_ok=True)
 
 def install(lib_name):
@@ -50,7 +51,14 @@ def install(lib_name):
     print(f"{lib_name} instalado")
 
 
-def add_to_project(proyecto_path, lib_name):
+def add_to_project(proyecto_name, lib_name):
+
+    proyecto_path = os.path.join(PP_PATH, proyecto_name)
+
+    if not os.path.exists(proyecto_path):
+        print(f"Proyecto '{proyecto_name}' no encontrado en {PP_PATH}")
+        return
+    
     cmake_path = os.path.join(proyecto_path, "CMakeLists.txt")
     lib_path = os.path.join(LIB_PATH, lib_name).replace("\\", "/")
 
@@ -94,6 +102,19 @@ def set_path(new_path):
     print(f"Carpeta de librerías cambiada a {LIB_PATH}")
 
 
+def list_pico_projects():
+    config = load_config()  # tu función para cargar JSON
+    root = config.get("pico_projects_path")
+    if not root or not os.path.exists(root):
+        print("Ruta de proyectos Pico no encontrada.")
+        return []
+
+    # Solo carpetas que contengan CMakeLists.txt (convención de proyecto Pico)
+    projects = [d for d in os.listdir(root)
+                if os.path.isdir(os.path.join(root, d))
+                and os.path.exists(os.path.join(root, d, "CMakeLists.txt"))]
+    return projects
+
 def main():
     if len(sys.argv)<2:
         print("Usa un comando: install, add, list, setpath")
@@ -122,6 +143,12 @@ def main():
             print("Uso: pmanager setpath <nueva_ruta>")
         else:
             set_path(args[0])
+
+    elif comando == "pplist":
+        print("Proyectos Pico encontrados:")
+        projects= list_pico_projects()
+        for p in projects:
+            print(f" - {p}")
 
     else:
         print(f"Comando desconocido: {comando}")
