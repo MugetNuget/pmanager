@@ -81,8 +81,9 @@ def add_to_project(lib_name, proyecto_name):
     if not cmake_path.exists():
         print(f"No se encontró CMakeLists.txt en {proyecto_path}")
         return
-
-    add_subdir_line = f'add_subdirectory("{lib_path}" "${{CMAKE_BINARY_DIR}}/{lib_name}_build")\n'
+    
+    lib_path_posix = (LIB_PATH / lib_name).as_posix()
+    add_subdir_line = f'add_subdirectory("{lib_path_posix}" "${{CMAKE_BINARY_DIR}}/{lib_name}_build")\n'
     link_lib_line_fragment = f"{lib_name}"
 
     # Leer contenido del CMake
