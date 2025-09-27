@@ -3,30 +3,47 @@ import json
 import os
 import subprocess
 import pkg_resources
+from pathlib import Path
 
-
-CONFIG_FILE = "pmanager/pmanager_config.json"
-
+# Configuración global
+USER_CONFIG_DIR = Path.home() / ".pclibs_config"
+USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+CONFIG_FILE = USER_CONFIG_DIR / "pmanager_config.json"
 
 with pkg_resources.resource_stream(__name__, "libraries.json") as f:
     LIBRARIES = json.load(f)
 
 def load_config():
-    default = {"lib_path": os.path.join(os.path.expanduser("~"), ".pclibs"),
-               "pico_projects_path": os.path.join(os.path.expanduser("~"), "PicoProjects")}
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
-            user_config = json.load(f)
-        default.update(user_config)  # mantiene defaults si faltan claves
+    default = {
+        "lib_path": Path.home() / ".pclibs",
+        "pico_projects_path": Path.home() / "PicoProjects"
+    }
+
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                user_config = json.load(f)
+            for key in ["lib_path", "pico_projects_path"]:
+                if key in user_config:
+                    default[key] = Path(user_config[key])
+        except json.JSONDecodeError:
+            print("Archivo de configuración vacío o corrupto, usando valores por defecto.")
+
+    # Normalizar rutas y crear carpetas
+    for key in default:
+        default[key] = default[key].expanduser().resolve()
+        default[key].mkdir(parents=True, exist_ok=True)
+
     return default
 
 def save_config(config):
     with open(CONFIG_FILE, "w") as f:
-        json.dump(config, f, indent=4)
+        json.dump({k: str(v) for k,v in config.items()}, f, indent=4)
 
 config = load_config()
-LIB_PATH = os.path.normpath(config["lib_path"])
-PP_PATH = os.path.normpath(config["pico_projects_path"])
+
+LIB_PATH = Path(config["lib_path"]).expanduser().resolve()
+PP_PATH = Path(config.get("pico_projects_path", "")).expanduser().resolve()
 
 os.makedirs(LIB_PATH, exist_ok=True)
 
@@ -93,14 +110,6 @@ def list_libs():
     for l in libs:
         print(f" - {l}")
 
-def set_path(new_path):
-    global LIB_PATH
-    LIB_PATH = new_path
-    os.makedirs(LIB_PATH, exist_ok=True)
-    config["lib_path"] = LIB_PATH
-    save_config(config)
-    print(f"Carpeta de librerías cambiada a {LIB_PATH}")
-
 
 def list_pico_projects():
     config = load_config()  # tu función para cargar JSON
@@ -137,12 +146,6 @@ def main():
 
     elif comando == "list":
         list_libs()
-
-    elif comando == "setpath":
-        if len(args) != 1:
-            print("Uso: pmanager setpath <nueva_ruta>")
-        else:
-            set_path(args[0])
 
     elif comando == "pplist":
         print("Proyectos Pico encontrados:")

@@ -23,6 +23,8 @@ Configuracion
 Puedes cambiar la ruta de descarga de las librerías locales y la ruta de tus proyectos en c para pi pico utilizando el archivo pmanager_config
 con el siguiente formato:
 
+en C:\Users\user\.pclibs_config y el equivalente en linux se encuentra el archivo de Configuracion.
+
 {
  "pico_projects_path": "C:/Users/user/PicoProjects",
  "lib_path": "C:/Users/user/.pclibs"
