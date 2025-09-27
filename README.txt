@@ -12,4 +12,4 @@ Integración sencilla con cualquier proyecto Pi Pico.
 
 Instalacion
 
-pip install https://github.com/MugetNuget/pmanager.git
+pip install git+https://github.com/MugetNuget/pmanager.git

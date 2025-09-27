@@ -1,0 +1,130 @@
+import sys
+import json
+import os
+import subprocess
+import pkg_resources
+
+
+CONFIG_FILE = "pmanager_config.json"
+
+
+with pkg_resources.resource_stream(__name__, "libraries.json") as f:
+    LIBRARIES = json.load(f)
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
+    else:
+        # carpeta por defecto
+        home = os.path.expanduser("~")
+        pclibs_path = os.path.join(home, ".pclibs")
+        return {"lib_path": pclibs_path}
+
+def save_config(config):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=4)
+
+config = load_config()
+LIB_PATH = config["lib_path"]
+os.makedirs(LIB_PATH, exist_ok=True)
+
+def install(lib_name):
+    
+    repo_url = LIBRARIES.get(lib_name)
+
+    if not repo_url:
+        print(f"Librería '{lib_name}' no encontrada en libraries.json")
+        return
+    
+    if lib_name.endswith(".git"):
+        lib_name = lib_name[:-4]
+
+    lib_dir = os.path.join(LIB_PATH, lib_name)
+    if os.path.exists(lib_dir):
+        print(f"Actualizando {lib_name}...")
+        subprocess.run(["git", "-C", lib_dir, "pull"])
+    else:
+        print(f"Clonando {lib_name} desde {repo_url}...")
+        subprocess.run(["git", "clone", repo_url, lib_dir])
+    print(f"{lib_name} instalado")
+
+
+def add_to_project(proyecto_path, lib_name):
+    cmake_path = os.path.join(proyecto_path, "CMakeLists.txt")
+    lib_path = os.path.join(LIB_PATH, lib_name).replace("\\", "/")
+
+    add_subdir_line = f'add_subdirectory("{lib_path}" "${{CMAKE_BINARY_DIR}}/{lib_name}_build")\n'
+    link_lib_line = f'target_link_libraries(${{PROJECT_NAME}} {lib_name})\n'
+
+    with open(cmake_path, "r") as f:
+        content = f.readlines()
+
+    # Inserta add_subdirectory después de add_executable
+    if add_subdir_line not in content:
+        for i, line in enumerate(content):
+            if "add_executable" in line:
+                content.insert(i+1, add_subdir_line)
+                break
+
+    # Agrega el link de librería
+    if link_lib_line not in content:
+        for i, line in enumerate(content):
+            if "target_link_libraries" in line:
+                content[i] = line.strip() + f" {lib_name}\n"
+                break
+
+    with open(cmake_path, "w") as f:
+        f.writelines(content)
+    print(f"{lib_name} agregado al proyecto")
+
+
+def list_libs():
+    libs = [d for d in os.listdir(LIB_PATH) if os.path.isdir(os.path.join(LIB_PATH, d))]
+    print("Librerías instaladas:")
+    for l in libs:
+        print(f" - {l}")
+
+def set_path(new_path):
+    global LIB_PATH
+    LIB_PATH = new_path
+    os.makedirs(LIB_PATH, exist_ok=True)
+    config["lib_path"] = LIB_PATH
+    save_config(config)
+    print(f"Carpeta de librerías cambiada a {LIB_PATH}")
+
+
+def main():
+    if len(sys.argv)<2:
+        print("Usa un comando: install, add, list, setpath")
+        return
+    
+    comando = sys.argv[1].lower()
+    args = sys.argv[2:]
+    
+    if comando == "install":
+        if len(args) != 1:
+            print("Uso: pmanager install <repo_url>")
+        else:
+            install(args[0])
+
+    elif comando == "add":
+        if len(args) != 2:
+            print("Uso: pmanager add <proyecto_path> <lib_name>")
+        else:
+            add_to_project(args[0], args[1])
+
+    elif comando == "list":
+        list_libs()
+
+    elif comando == "setpath":
+        if len(args) != 1:
+            print("Uso: pmanager setpath <nueva_ruta>")
+        else:
+            set_path(args[0])
+
+    else:
+        print(f"Comando desconocido: {comando}")
+
+if __name__ == "__main__":
+    main()
