@@ -68,40 +68,49 @@ def install(lib_name):
     print(f"{lib_name} instalado")
 
 
-def add_to_project(proyecto_name, lib_name):
+from pathlib import Path
 
-    proyecto_path = os.path.join(PP_PATH, proyecto_name)
+def add_to_project(lib_name, proyecto_name):
+    proyecto_path = PP_PATH / proyecto_name
+    cmake_path = proyecto_path / "CMakeLists.txt"
+    lib_path = LIB_PATH / lib_name
 
-    if not os.path.exists(proyecto_path):
+    if not proyecto_path.exists():
         print(f"Proyecto '{proyecto_name}' no encontrado en {PP_PATH}")
         return
-    
-    cmake_path = os.path.join(proyecto_path, "CMakeLists.txt")
-    lib_path = os.path.join(LIB_PATH, lib_name).replace("\\", "/")
+    if not cmake_path.exists():
+        print(f"No se encontró CMakeLists.txt en {proyecto_path}")
+        return
 
     add_subdir_line = f'add_subdirectory("{lib_path}" "${{CMAKE_BINARY_DIR}}/{lib_name}_build")\n'
-    link_lib_line = f'target_link_libraries(${{PROJECT_NAME}} {lib_name})\n'
+    link_lib_line_fragment = f"{lib_name}"
 
-    with open(cmake_path, "r") as f:
-        content = f.readlines()
+    # Leer contenido del CMake
+    content = cmake_path.read_text().splitlines(keepends=True)
 
-    # Inserta add_subdirectory después de add_executable
-    if add_subdir_line not in content:
+    # --- add_subdirectory ---
+    if not any(lib_name in line and "add_subdirectory" in line for line in content):
         for i, line in enumerate(content):
             if "add_executable" in line:
                 content.insert(i+1, add_subdir_line)
                 break
 
-    # Agrega el link de librería
-    if link_lib_line not in content:
-        for i, line in enumerate(content):
-            if "target_link_libraries" in line:
-                content[i] = line.strip() + f" {lib_name}\n"
-                break
+    # --- target_link_libraries ---
+    for i, line in enumerate(content):
+        if "target_link_libraries" in line:
+            libs_in_line = line.strip().split()[1:]  # Ignora target
+            if lib_name not in line:
+                # Agrega al final de la línea
+                content[i] = line.rstrip() + f" {lib_name}\n"
+            break
+    else:
+        # Si no hay target_link_libraries, lo agregamos al final
+        content.append(link_lib_line_fragment + "\n")
 
-    with open(cmake_path, "w") as f:
-        f.writelines(content)
-    print(f"{lib_name} agregado al proyecto")
+    # Guardar cambios
+    cmake_path.write_text("".join(content))
+    print(f"{lib_name} agregado al proyecto (sin duplicados)")
+
 
 
 def list_libs():
