@@ -5,6 +5,9 @@ import subprocess
 import pkg_resources
 from pathlib import Path
 import re
+import shutil
+import tkinter as tk
+from tkinter import filedialog
 
 # Configuración global
 USER_CONFIG_DIR = Path.home() / ".pclibs_config"
@@ -265,6 +268,59 @@ def list_pico_projects(): # tu función para cargar JSON
                 and os.path.exists(os.path.join(root, d, "CMakeLists.txt"))]
     return projects
 
+def initplab(proyecto_name):
+
+    proyecto_path = PP_PATH / proyecto_name
+    print(f"Proyecto path: {proyecto_path}")
+    nombre_proyecto = proyecto_path.stem  # Nombre base del archivo .c o proyecto
+
+    # Crear carpeta PicoLab
+    picolab_path = proyecto_path / "PicoLab"
+    picolab_path.mkdir(exist_ok=True)
+
+    # Crear wokwi.toml con rutas relativas
+    toml_path = picolab_path / "wokwi.toml"
+    content = f"""[wokwi]
+version = 1
+firmware = '../build/{nombre_proyecto}.uf2'
+elf = '../build/{nombre_proyecto}.elf'
+"""
+    with open(toml_path, "w") as f:
+        f.write(content)
+    print(f"Archivo wokwi.toml creado en {toml_path}")
+
+def add_diagram_json(proyecto_name):
+    # Inicializar Tkinter (ocultamos la ventana principal)
+    root = tk.Tk()
+    root.withdraw()
+
+    # Abrir explorador de archivos para seleccionar JSON
+    archivo_json_path = filedialog.askopenfilename(
+        title="Selecciona el archivo JSON",
+        filetypes=[("Archivos JSON", "*.json")]
+    )
+
+    if not archivo_json_path:
+        print("No se seleccionó ningún archivo")
+        return
+
+    archivo_json = Path(archivo_json_path).resolve()
+
+    # Verificar que sea un JSON válido
+    if archivo_json.suffix != ".json":
+        print("Archivo no válido, debe ser un .json")
+        return
+
+    # Determinar carpeta PicoLab
+    proyecto_path = PP_PATH / proyecto_name
+    picolab_path = proyecto_path / "PicoLab"
+    picolab_path.mkdir(exist_ok=True)
+
+    # Copiar el archivo al proyecto
+    destino = picolab_path / "diagram.json"
+    shutil.copyfile(archivo_json, destino)
+    print(f"Archivo JSON copiado a {destino}")
+
 def main():
     if len(sys.argv)<2:
         print("Usa un comando: install, add, list, setpath")
@@ -299,6 +355,19 @@ def main():
         projects= list_pico_projects()
         for p in projects:
             print(f" - {p}")
+
+    elif comando == "initplab":
+        if len(args) != 1:
+            print("Uso: pmanager initlab <proyecto_name>")
+        else:
+            print("Iniciando PicoLab...")
+            initplab(args[0])
+
+    elif comando == "addjson":
+        if len(args) != 1:
+            print("Uso: pmanager addjson <proyecto_name>")
+        else:
+            add_diagram_json(args[0])
 
     else:
         print(f"Comando desconocido: {comando}")
