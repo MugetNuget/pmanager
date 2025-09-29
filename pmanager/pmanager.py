@@ -17,6 +17,37 @@ CONFIG_FILE = USER_CONFIG_DIR / "pmanager_config.json"
 with pkg_resources.resource_stream(__name__, "libraries.json") as f:
     LIBRARIES = json.load(f)
 
+
+"""
+@file pmanager.py
+@brief Gestor de librerías y proyectos Pico para Raspberry Pi Pico.
+
+Este script permite:
+- Instalar librerías desde repositorios Git.
+- Agregar y remover librerías de proyectos Pico.
+- Inicializar entorno PicoLab para simulación.
+- Convertir proyectos a modo desarrollo.
+- Listar librerías instaladas y proyectos Pico disponibles.
+
+@note Requiere Python 3 y Tkinter para selección de archivos JSON.
+"""
+
+"""
+@var USER_CONFIG_DIR
+Directorio de configuración del usuario (~/.pclibs_config).
+
+@var CONFIG_FILE
+Archivo JSON que guarda la configuración de rutas de librerías y proyectos.
+
+@var LIBRARIES
+Diccionario con las librerías disponibles, cargadas desde 'libraries.json'.
+"""
+
+"""
+@brief Carga la configuración del usuario desde CONFIG_FILE.
+@return Diccionario con rutas normalizadas y creadas si no existían.
+"""
+
 def load_config():
     default = {
         "lib_path": Path.home() / ".pclibs",
@@ -40,6 +71,10 @@ def load_config():
 
     return default
 
+"""
+@brief Guarda la configuración del usuario en CONFIG_FILE.
+@param config Diccionario con rutas de librerías y proyectos.
+"""
 def save_config(config):
     with open(CONFIG_FILE, "w") as f:
         json.dump({k: str(v) for k,v in config.items()}, f, indent=4)
@@ -51,6 +86,10 @@ PP_PATH = Path(config.get("pico_projects_path", "")).expanduser().resolve()
 
 os.makedirs(LIB_PATH, exist_ok=True)
 
+"""
+@brief Instala o actualiza una librería desde su repositorio Git.
+@param lib_name Nombre de la librería a instalar.
+"""
 def install(lib_name):
     
     repo_url = LIBRARIES.get(lib_name)
@@ -73,7 +112,12 @@ def install(lib_name):
 
 
 
-
+"""
+@brief Agrega una librería a un proyecto Pico existente.
+@param lib_name Nombre de la librería.
+@param proyecto_name Nombre del proyecto Pico.
+@note Modifica CMakeLists.txt para incluir add_subdirectory y target_link_libraries.
+"""
 def add_to_project(lib_name, proyecto_name):
     proyecto_path = PP_PATH / proyecto_name
     
@@ -184,9 +228,12 @@ def add_to_project(lib_name, proyecto_name):
     cmake_path.write_text(content)
     print(f"✅ {lib_name} agregado al proyecto '{proyecto_name}'")
 
-
-
-
+"""
+@brief Remueve una librería de un proyecto Pico existente.
+@param lib_name Nombre de la librería.
+@param proyecto_name Nombre del proyecto Pico.
+@note Modifica CMakeLists.txt eliminando add_subdirectory y target_link_libraries.
+"""
 def remove_from_project(lib_name, proyecto_name):
     proyecto_path = PP_PATH / proyecto_name
     cmake_path = proyecto_path / "CMakeLists.txt"
@@ -249,14 +296,19 @@ def remove_from_project(lib_name, proyecto_name):
     else:
         print(f"❌ {lib_name} no se encontró en el proyecto")
 
-
+"""
+@brief Lista las librerías instaladas en LIB_PATH.
+"""
 def list_libs():
     libs = [d for d in os.listdir(LIB_PATH) if os.path.isdir(os.path.join(LIB_PATH, d))]
     print("Librerías instaladas:")
     for l in libs:
         print(f" - {l}")
 
-
+"""
+@brief Lista proyectos Pico encontrados en la ruta configurada.
+@return Lista de nombres de carpetas de proyectos Pico válidos.
+"""
 def list_pico_projects(): # tu función para cargar JSON
     root = config.get("pico_projects_path")
     if not root or not os.path.exists(root):
@@ -269,6 +321,11 @@ def list_pico_projects(): # tu función para cargar JSON
                 and os.path.exists(os.path.join(root, d, "CMakeLists.txt"))]
     return projects
 
+"""
+@brief Inicializa la carpeta PicoLab dentro de un proyecto Pico.
+@param proyecto_name Nombre del proyecto.
+@note Crea wokwi.toml para integración con Wokwi.
+"""
 def initplab(proyecto_name):
 
     proyecto_path = PP_PATH / proyecto_name
@@ -292,6 +349,11 @@ elf = '../build/{nombre_proyecto}.elf'
         f.write(content)
     print(f"Archivo wokwi.toml creado en {toml_path}")
 
+"""
+@brief Agrega un archivo diagram.json a la carpeta PicoLab de un proyecto.
+@param proyecto_name Nombre del proyecto Pico.
+@note Se abre un diálogo de selección de archivo usando Tkinter.
+"""
 def add_diagram_json(proyecto_name):
     # Inicializar Tkinter (ocultamos la ventana principal)
     root = tk.Tk()
@@ -324,6 +386,12 @@ def add_diagram_json(proyecto_name):
     shutil.copyfile(archivo_json, destino)
     print(f"Archivo JSON copiado a {destino}")
 
+"""
+@brief Convierte un proyecto Pico a modo desarrollo para una librería.
+@param proyecto_name Nombre del proyecto Pico.
+@param lib_name Nombre de la librería.
+@note Crea estructura include/src, archivos .h/.c base y modifica CMakeLists.txt.
+"""
 def turn_to_dev(proyecto_name, lib_name):
     proyecto_path = PP_PATH / proyecto_name
     if not proyecto_path.exists():  
@@ -407,6 +475,10 @@ def turn_to_dev(proyecto_name, lib_name):
 
 
 
+"""
+@brief Función principal del script, interpreta comandos desde línea de comandos.
+@note Comandos disponibles: install, add, turn2dev, remove, list, pplist, initplab, loadjson.
+"""
 def main():
     if len(sys.argv)<2:
         print("Usa un comando: install, add, list, setpath")

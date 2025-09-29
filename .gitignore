@@ -1,0 +1,5 @@
+# Ignorar documentación generada por Doxygen
+docs/
+
+# Ignorar archivo de configuración de Doxygen
+Doxyfile
