@@ -76,6 +76,7 @@ def install(lib_name):
 
 def add_to_project(lib_name, proyecto_name):
     proyecto_path = PP_PATH / proyecto_name
+    
     cmake_path = proyecto_path / "CMakeLists.txt"
     lib_path = LIB_PATH / lib_name
 
@@ -271,7 +272,9 @@ def list_pico_projects(): # tu función para cargar JSON
 def initplab(proyecto_name):
 
     proyecto_path = PP_PATH / proyecto_name
-    print(f"Proyecto path: {proyecto_path}")
+    if not proyecto_path.exists():  
+        print(f"❌ Proyecto '{proyecto_name}' no encontrado en {PP_PATH}")
+        return
     nombre_proyecto = proyecto_path.stem  # Nombre base del archivo .c o proyecto
 
     # Crear carpeta PicoLab
@@ -321,6 +324,89 @@ def add_diagram_json(proyecto_name):
     shutil.copyfile(archivo_json, destino)
     print(f"Archivo JSON copiado a {destino}")
 
+def turn_to_dev(proyecto_name, lib_name):
+    proyecto_path = PP_PATH / proyecto_name
+    if not proyecto_path.exists():  
+        print(f"❌ Proyecto '{proyecto_name}' no encontrado en {PP_PATH}")
+        return
+    proyecto = Path(proyecto_path).resolve()
+    lib_path = proyecto / "lib" / lib_name
+    include_path = lib_path / "include"
+    src_path = lib_path / "src"
+
+    # Crear carpetas
+    include_path.mkdir(parents=True, exist_ok=True)
+    src_path.mkdir(parents=True, exist_ok=True)
+
+    # Archivos base
+    h_file = include_path / f"{lib_name}.h"
+    c_file = src_path / f"{lib_name}.c"
+    cmake_file = proyecto / "CMakeLists.txt"
+    lib_cmake_file = lib_path / "CMakeLists.txt"
+
+    # Normalizar nombre para guardas
+    guard_name = f"{lib_name.upper()}_H"
+
+    # Crear .h si no existe
+    if not h_file.exists():
+        h_file.write_text(
+            f"#ifndef {guard_name}\n"
+            f"#define {guard_name}\n\n"
+            f"// Declaraciones de funciones de {lib_name}\n\n"
+            f"#endif // {guard_name}\n"
+        )
+
+    # Crear .c si no existe
+    if not c_file.exists():
+        c_file.write_text(
+            f'#include "{lib_name}.h"\n\n'
+            f"// Definiciones de funciones de {lib_name}\n"
+        )
+
+    # Crear CMakeLists.txt dentro de la librería
+    if not lib_cmake_file.exists():
+        lib_cmake_file.write_text(
+            f"add_library({lib_name} STATIC\n"
+            f"    src/{lib_name}.c\n"
+            f")\n\n"
+            f"target_include_directories({lib_name} PUBLIC include)\n\n"
+            f"target_link_libraries({lib_name} PUBLIC pico_stdlib)\n"
+        )
+
+    # Modificar CMakeLists principal
+    if cmake_file.exists():
+        cmake_content = cmake_file.read_text().splitlines()
+        new_content = []
+        target_name = None
+
+        for line in cmake_content:
+            if line.strip().startswith("add_executable("):
+                # detectar nombre del target correctamente
+                inside = line.strip()[len("add_executable("):].strip(" )")
+                parts = inside.split()
+                if parts:
+                    target_name = parts[0]  # siempre el primer argumento es el target
+
+                # meter el .c de la librería si no está
+                if f"lib/src/{lib_name}.c" not in line and f"lib/{lib_name}/src/{lib_name}.c" not in line:
+                    if line.endswith(")"):
+                        line = line[:-1] + f"\n    lib/{lib_name}/src/{lib_name}.c)"
+            new_content.append(line)
+
+        # agregar target_include_directories si no existe
+        include_line = f"    ${{CMAKE_CURRENT_LIST_DIR}}/lib/{lib_name}/include"
+        cmake_joined = "\n".join(cmake_content)
+        if target_name and include_line not in cmake_joined:
+            new_content.append(
+                f"\ntarget_include_directories({target_name} PRIVATE\n"
+                f"    ${{CMAKE_CURRENT_LIST_DIR}}\n"
+                f"{include_line}\n)"
+            )
+
+    print(f"✅ Proyecto convertido a modo desarrollo con lib '{lib_name}'")
+
+
+
 def main():
     if len(sys.argv)<2:
         print("Usa un comando: install, add, list, setpath")
@@ -337,13 +423,19 @@ def main():
 
     elif comando == "add":
         if len(args) != 2:
-            print("Uso: pmanager add <proyecto_path> <lib_name>")
+            print("Uso: pmanager add <lib_name> <proyecto_path>")
         else:
             add_to_project(args[0], args[1])
 
+    elif comando == "turn2dev":
+        if len(args) != 2:
+            print("Uso: pmanager turn2dev <proyecto_path> <lib_name>")
+        else:
+            turn_to_dev(args[0], args[1])
+
     elif comando == "remove":
         if len(args) != 2:
-            print("Uso: pmanager remove <proyecto_path> <lib_name>")
+            print("Uso: pmanager remove <lib_name> <proyecto_path>")
         else:
             remove_from_project(args[0], args[1])
 
@@ -363,14 +455,15 @@ def main():
             print("Iniciando PicoLab...")
             initplab(args[0])
 
-    elif comando == "addjson":
+    elif comando == "loadjson":
         if len(args) != 1:
-            print("Uso: pmanager addjson <proyecto_name>")
+            print("Uso: pmanager loadjson <proyecto_name>")
         else:
             add_diagram_json(args[0])
 
     else:
         print(f"Comando desconocido: {comando}")
+
 
 if __name__ == "__main__":
     main()
