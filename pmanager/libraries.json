@@ -1,3 +1,4 @@
 {
-    "pbinstr": "https://github.com/MugetNuget/pbinstr.git"
+    "pbinstr": "https://github.com/MugetNuget/pbinstr.git",
+    "lcd":"https://github.com/MugetNuget/lcd.git"
 }
