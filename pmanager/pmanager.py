@@ -386,10 +386,13 @@ Se abre un diálogo de selección de archivo usando Tkinter.
 
 def turn_to_dev(proyecto_name, lib_name):
     """
-Convierte un proyecto Pico a modo desarrollo para una librería.
-proyecto_name Nombre del proyecto Pico.
-lib_name Nombre de la librería.
-Crea estructura include/src, archivos .h/.c base y modifica CMakeLists.txt.
+    Convierte un proyecto Pico a modo desarrollo para una librería.
+    - Crea estructura include/src
+    - Archivos .h/.c base
+    - CMakeLists.txt de la lib
+    - Modifica el CMakeLists principal:
+        * Inserta add_subdirectory
+        * Agrega la lib al target_link_libraries existente (plain o keyword)
     """
     proyecto_path = PP_PATH / proyecto_name
     if not proyecto_path.exists():  
@@ -410,7 +413,6 @@ Crea estructura include/src, archivos .h/.c base y modifica CMakeLists.txt.
     cmake_file = proyecto / "CMakeLists.txt"
     lib_cmake_file = lib_path / "CMakeLists.txt"
 
-    # Normalizar nombre para guardas
     guard_name = f"{lib_name.upper()}_H"
 
     # Crear .h si no existe
@@ -444,33 +446,49 @@ Crea estructura include/src, archivos .h/.c base y modifica CMakeLists.txt.
         cmake_content = cmake_file.read_text().splitlines()
         new_content = []
         target_name = None
+        subdir_added = False
+        lib_linked = False
 
-        for line in cmake_content:
-            if line.strip().startswith("add_executable("):
-                # detectar nombre del target correctamente
-                inside = line.strip()[len("add_executable("):].strip(" )")
+        for i, line in enumerate(cmake_content):
+            stripped = line.strip()
+
+            # Detectar add_executable
+            if stripped.startswith("add_executable("):
+                inside = stripped[len("add_executable("):].strip(" )")
                 parts = inside.split()
                 if parts:
-                    target_name = parts[0]  # siempre el primer argumento es el target
+                    target_name = parts[0]
 
-                # meter el .c de la librería si no está
-                if f"lib/src/{lib_name}.c" not in line and f"lib/{lib_name}/src/{lib_name}.c" not in line:
-                    if line.endswith(")"):
-                        line = line[:-1] + f"\n    lib/{lib_name}/src/{lib_name}.c)"
+                new_content.append(line)
+
+                # Insertar add_subdirectory justo después
+                if not any(f"add_subdirectory(lib/{lib_name})" in l for l in cmake_content):
+                    new_content.append(f"add_subdirectory(lib/{lib_name})")
+                subdir_added = True
+                continue
+
+            # Detectar target_link_libraries
+            if target_name and stripped.startswith(f"target_link_libraries({target_name}"):
+                # Detectar si es plain o keyword
+                if "PRIVATE" in stripped or "PUBLIC" in stripped or "INTERFACE" in stripped:
+                    # keyword signature
+                    if lib_name not in stripped and not any(lib_name in l for l in cmake_content):
+                        line = line.rstrip(")") + f"\n    {lib_name}\n)"
+                else:
+                    # plain signature
+                    if lib_name not in stripped and not any(lib_name in l for l in cmake_content):
+                        line = line.rstrip(")") + f"\n    {lib_name})"
+                lib_linked = True
+
             new_content.append(line)
 
-        # agregar target_include_directories si no existe
-        include_line = f"    ${{CMAKE_CURRENT_LIST_DIR}}/lib/{lib_name}/include"
-        cmake_joined = "\n".join(cmake_content)
-        if target_name and include_line not in cmake_joined:
+        # Si nunca encontró target_link_libraries, lo agrega
+        if target_name and not lib_linked:
             new_content.append(
-                f"\ntarget_include_directories({target_name} PRIVATE\n"
-                f"    ${{CMAKE_CURRENT_LIST_DIR}}\n"
-                f"{include_line}\n)"
+                f"\ntarget_link_libraries({target_name} PRIVATE {lib_name})"
             )
-            
-        cmake_file.write_text("\n".join(new_content) + "\n")
 
+        cmake_file.write_text("\n".join(new_content) + "\n")
 
     print(f"✅ Proyecto convertido a modo desarrollo con lib '{lib_name}'")
 
