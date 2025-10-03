@@ -468,6 +468,9 @@ Crea estructura include/src, archivos .h/.c base y modifica CMakeLists.txt.
                 f"    ${{CMAKE_CURRENT_LIST_DIR}}\n"
                 f"{include_line}\n)"
             )
+            
+        cmake_file.write_text("\n".join(new_content) + "\n")
+
 
     print(f"✅ Proyecto convertido a modo desarrollo con lib '{lib_name}'")
 
