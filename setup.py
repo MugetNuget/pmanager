@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pmanager",
-    version="0.2.2",
+    version="0.2.5",
     packages=find_packages(),
     include_package_data=True,  # <- permite incluir archivos extras
     entry_points={
