@@ -1,4 +1,7 @@
 {
     "pbinstr": "https://github.com/MugetNuget/pbinstr.git",
-    "lcd":"https://github.com/MugetNuget/lcd.git"
+    "lcd":"https://github.com/MugetNuget/lcd.git",
+    "ldr":"https://github.com/MugetNuget/ldr.git",
+    "lm35":"https://github.com/MugetNuget/lm35.git"
+
 }
